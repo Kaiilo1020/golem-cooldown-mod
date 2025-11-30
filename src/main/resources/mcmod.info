@@ -1,0 +1,14 @@
+[
+{
+  "modid": "golemcooldown",
+  "name": "Golem Cooldown Counter",
+  "description": "Muestra el cooldown del kit leyendo del scoreboard. Adaptado para Destruye el Nexus.",
+  "version": "1.0.0",
+  "mcversion": "1.8.9",
+  "url": "",
+  "updateUrl": "",
+  "authorList": ["Andre", "Kaylo"],
+  "credits": "Basado en el mod Cooldowns de canelex. Desarrollado por Andre y Kaylo."
+}
+]
+
