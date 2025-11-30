@@ -8,7 +8,8 @@ Mod de Forge para Minecraft 1.8.9 que muestra el cooldown del kit leyendo direct
 - Soporta múltiples kits con cooldowns diferentes
 - Mantiene el estado del cooldown al salir y volver a entrar
 - Contador visual personalizable (posición y tamaño)
-- Basado en el mod Cooldowns de canelex
+- Detección automática desde el chat cuando se usa una habilidad
+- Comandos para testing y control manual
 
 ## Instalación
 
@@ -32,13 +33,25 @@ Mod de Forge para Minecraft 1.8.9 que muestra el cooldown del kit leyendo direct
 
 El mod funciona automáticamente. Lee el scoreboard y muestra el cooldown del kit actual.
 
-## Comandos
+### Comandos
 
-- `/golemhud` - Activa/desactiva el modo edición para mover el contador
-- `/golemstatus` - Muestra el estado actual del cooldown
+- `/golemcooldown` - Muestra la ayuda
+- `/golemcooldown test` - Inicia un cooldown de prueba (30s)
+- `/golemcooldown start <kit> <segundos>` - Inicia un cooldown manual
+- `/golemcooldown info` - Muestra el estado actual del mod
+- `/golemcooldown reset` - Resetea todos los cooldowns
+
+## Cómo funciona
+
+El mod detecta el kit y cooldown de 3 formas:
+
+1. **Desde el scoreboard**: Lee automáticamente cuando aparece "Kit: Golem (30s)"
+2. **Desde el chat**: Detecta mensajes como "Pisotón" con tiempos de cooldown
+3. **Manual**: Usa `/golemcooldown start` para iniciar un cooldown
+
+El contador solo se muestra cuando hay un cooldown activo (mayor a 0) y un kit detectado.
 
 ## Créditos
 
 - **Desarrolladores:** Andre, Kaylo
 - **Inspiración:** Basado en el mod "Cooldowns" de canelex (2017)
-
