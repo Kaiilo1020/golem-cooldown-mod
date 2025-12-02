@@ -1,7 +1,6 @@
 package net.andre.golemcooldown;
 
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
@@ -21,7 +20,7 @@ public class KitRenderManager {
     
     @SubscribeEvent
     public void onRenderOverlay(RenderGameOverlayEvent.Post event) {
-        // Usar TEXT en lugar de ALL para evitar interferencias
+        // Renderizar solo cuando se renderiza el texto (después de todo lo demás)
         if (event.type != RenderGameOverlayEvent.ElementType.TEXT) {
             return;
         }
@@ -62,7 +61,7 @@ public class KitRenderManager {
     /**
      * Dibuja el contador circular estilo canelex
      * Diseño: Círculo con borde blanco, fondo oscuro/morado, número centrado en amarillo
-     * IMPORTANTE: Restaura completamente el estado de OpenGL para no afectar otros mods
+     * IMPORTANTE: Usa pushMatrix/popMatrix simple como el mod original - NO toca estados manualmente
      */
     private void dibujarContadorCircular(Minecraft mc, int x, int y, float escala, 
                                          int cooldown, int cooldownMax) {
@@ -71,7 +70,7 @@ public class KitRenderManager {
             escala = 1.0f;
         }
         
-        // Guardar estado de OpenGL (CRÍTICO para no afectar otros mods)
+        // SIMPLE: Solo push/pop matrix - GlStateManager maneja el resto internamente
         GlStateManager.pushMatrix();
         
         try {
@@ -102,7 +101,7 @@ public class KitRenderManager {
             int colorBorde = 0xFFFFFFFF; // Blanco
             dibujarCirculoBorde(scaledX, scaledY, radio, grosorBorde, colorBorde);
             
-            // Restaurar estados de OpenGL
+            // Restaurar estados de OpenGL antes del texto
             GlStateManager.enableTexture2D();
             GlStateManager.enableAlpha();
             
@@ -135,23 +134,22 @@ public class KitRenderManager {
             System.err.println("[CooldownAnni] Error al renderizar círculo: " + e.getMessage());
             e.printStackTrace();
         } finally {
-            // SIEMPRE restaurar el estado de OpenGL (CRÍTICO)
-            GlStateManager.enableTexture2D();
-            GlStateManager.enableAlpha();
+            // SIMPLE: Solo popMatrix - GlStateManager restaura todo automáticamente
+            // NO intentar restaurar estados manualmente - eso causa problemas
             GlStateManager.popMatrix();
         }
     }
     
     /**
      * Dibuja un círculo relleno usando OpenGL
+     * NO restaura estados aquí - se hace en el método principal para compatibilidad
      */
     private void dibujarCirculoRelleno(int x, int y, int radio, int color) {
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer worldrenderer = tessellator.getWorldRenderer();
         
-        GlStateManager.disableTexture2D();
-        GlStateManager.enableBlend();
-        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        // NO modificar estados aquí - ya están configurados en el método principal
+        // Solo dibujar el círculo
         
         // Extraer componentes de color
         int alpha = (color >> 24) & 0xFF;
@@ -177,11 +175,11 @@ public class KitRenderManager {
         }
         
         tessellator.draw();
-        GlStateManager.enableTexture2D();
     }
     
     /**
      * Dibuja el borde de un círculo usando OpenGL
+     * NO restaura estados aquí - se hace en el método principal para compatibilidad
      */
     private void dibujarCirculoBorde(int x, int y, int radio, int grosor, int color) {
         // Validar parámetros
@@ -192,9 +190,8 @@ public class KitRenderManager {
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer worldrenderer = tessellator.getWorldRenderer();
         
-        GlStateManager.disableTexture2D();
-        GlStateManager.enableBlend();
-        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        // NO modificar estados aquí - ya están configurados en el método principal
+        // Solo dibujar el borde
         
         // Extraer componentes de color
         int alpha = (color >> 24) & 0xFF;
@@ -231,7 +228,6 @@ public class KitRenderManager {
         }
         
         tessellator.draw();
-        GlStateManager.enableTexture2D();
     }
 }
 

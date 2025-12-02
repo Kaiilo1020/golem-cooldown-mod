@@ -170,7 +170,6 @@ public class GuiCreateCooldown extends GuiScreen {
      * Dibuja el contador de ejemplo (para edición)
      */
     private void dibujarContadorEjemplo(int mouseX, int mouseY) {
-        Minecraft mc = Minecraft.getMinecraft();
         net.minecraft.client.gui.ScaledResolution scaled = getScaledResolution();
         int screenHeight = scaled.getScaledHeight();
         

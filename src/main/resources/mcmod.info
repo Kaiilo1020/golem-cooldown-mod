@@ -3,7 +3,7 @@
   "modid": "cooldownanni",
   "name": "CooldownAnni",
   "description": "Muestra el cooldown del kit leyendo del scoreboard. Adaptado para Destruye el Nexus.",
-  "version": "1.0.0",
+  "version": "2.0",
   "mcversion": "1.8.9",
   "url": "",
   "updateUrl": "",
