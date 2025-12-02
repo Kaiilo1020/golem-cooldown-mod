@@ -17,26 +17,18 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
  * - Configuraciones de otros mods
  * - gameSettings de Minecraft
  * 
- * Solo crea/modifica: config/golemcooldown.cfg
+ * Solo crea/modifica: config/cooldownanni.cfg
  */
-@Mod(modid = GolemCooldownMod.MODID, name = GolemCooldownMod.NAME, version = GolemCooldownMod.VERSION, acceptedMinecraftVersions = "[1.8.9]")
-public class GolemCooldownMod {
-    public static final String MODID = "golemcooldown";
-    public static final String NAME = "Golem Cooldown Counter";
+@Mod(modid = CooldownAnni.MODID, name = CooldownAnni.NAME, version = CooldownAnni.VERSION, acceptedMinecraftVersions = "[1.8.9]", clientSideOnly = true)
+public class CooldownAnni {
+    public static final String MODID = "cooldownanni";
+    public static final String NAME = "CooldownAnni";
     public static final String VERSION = "1.0.0";
 
-    @Mod.Instance(MODID)
-    public static GolemCooldownMod instance;
 
     // Sistema principal (scoreboard)
     public static ScoreboardCooldownManager scoreboardCooldownManager;
     public static KitRenderManager kitRenderManager;
-    
-    // Sistema antiguo (mantener para compatibilidad)
-    public static CooldownManager cooldownManager;
-    public static RenderManager renderManager;
-    public static ItemCooldownManager itemCooldownManager;
-    public static ItemRenderManager itemRenderManager;
 
     @EventHandler
     public void preInit(FMLPreInitializationEvent event) {
@@ -46,12 +38,6 @@ public class GolemCooldownMod {
         // Sistema principal (scoreboard)
         scoreboardCooldownManager = new ScoreboardCooldownManager();
         kitRenderManager = new KitRenderManager();
-        
-        // Sistema antiguo (mantener para compatibilidad)
-        cooldownManager = new CooldownManager();
-        renderManager = new RenderManager();
-        itemCooldownManager = new ItemCooldownManager();
-        itemRenderManager = new ItemRenderManager();
     }
 
     @EventHandler
@@ -61,14 +47,7 @@ public class GolemCooldownMod {
         MinecraftForge.EVENT_BUS.register(scoreboardCooldownManager);
         MinecraftForge.EVENT_BUS.register(kitRenderManager);
         
-        // Sistema antiguo (mantener para compatibilidad)
-        MinecraftForge.EVENT_BUS.register(new ModEventHandler());
-        MinecraftForge.EVENT_BUS.register(renderManager);
-        MinecraftForge.EVENT_BUS.register(new ItemCooldownEventHandler(itemCooldownManager));
-        MinecraftForge.EVENT_BUS.register(itemRenderManager);
-        
         // Comandos
-        ClientCommandHandler.instance.registerCommand(new ModCommand());
         ClientCommandHandler.instance.registerCommand(new CommandCooldown());
     }
 }

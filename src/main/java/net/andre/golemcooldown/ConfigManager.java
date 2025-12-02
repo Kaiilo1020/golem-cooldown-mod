@@ -28,13 +28,13 @@ public class ConfigManager {
     
     /**
      * Inicializa el sistema de configuración
-     * SOLO crea/modifica el archivo golemcooldown.cfg
+     * SOLO crea/modifica el archivo cooldownanni.cfg
      * NO toca ningún otro archivo de configuración
      */
     public static void init(File configDir) {
         try {
             // Asegurarse de que solo usamos nuestro propio archivo
-            configFile = new File(configDir, "golemcooldown.cfg");
+            configFile = new File(configDir, "cooldownanni.cfg");
             
             // Crear el archivo si no existe (solo nuestro archivo)
             if (!configFile.exists()) {
@@ -52,7 +52,7 @@ public class ConfigManager {
         } catch (Exception e) {
             // Si hay error, usar valores por defecto
             // NO intentar modificar nada más
-            System.err.println("[GolemCooldown] Error al inicializar configuración: " + e.getMessage());
+            System.err.println("[CooldownAnni] Error al inicializar configuración: " + e.getMessage());
             e.printStackTrace();
             hudX = defaultX;
             hudY = defaultY;
@@ -62,7 +62,7 @@ public class ConfigManager {
     
     /**
      * Carga la configuración desde el archivo
-     * SOLO lee de golemcooldown.cfg
+     * SOLO lee de cooldownanni.cfg
      */
     public static void loadConfig() {
         if (config == null || !initialized) return;
@@ -80,7 +80,13 @@ public class ConfigManager {
             
             hudX = propX.getInt();
             hudY = propY.getInt();
-            hudScale = (float) propScale.getDouble();
+            float scaleValue = (float) propScale.getDouble();
+            // Validar escala al cargar (entre 0.1 y 5.0)
+            if (scaleValue < 0.1f || scaleValue > 5.0f) {
+                hudScale = defaultScale;
+            } else {
+                hudScale = scaleValue;
+            }
             
             // Solo guardar si realmente cambió algo
             if (config.hasChanged()) {
@@ -88,7 +94,7 @@ public class ConfigManager {
             }
         } catch (Exception e) {
             // Si hay error, usar valores por defecto
-            System.err.println("[GolemCooldown] Error al cargar configuración: " + e.getMessage());
+            System.err.println("[CooldownAnni] Error al cargar configuración: " + e.getMessage());
             hudX = defaultX;
             hudY = defaultY;
             hudScale = defaultScale;
@@ -97,7 +103,7 @@ public class ConfigManager {
     
     /**
      * Guarda la configuración actual
-     * SOLO guarda en golemcooldown.cfg
+     * SOLO guarda en cooldownanni.cfg
      */
     public static void saveConfig() {
         if (config == null || !initialized) return;
@@ -113,7 +119,7 @@ public class ConfigManager {
         } catch (Exception e) {
             // Si hay error, no hacer nada
             // NO intentar modificar otros archivos
-            System.err.println("[GolemCooldown] Error al guardar configuración: " + e.getMessage());
+            System.err.println("[CooldownAnni] Error al guardar configuración: " + e.getMessage());
         }
     }
     
@@ -121,6 +127,7 @@ public class ConfigManager {
      * Establece la posición del HUD
      */
     public static void setPosition(int x, int y) {
+        // Validar valores razonables
         hudX = x;
         hudY = y;
         saveConfig();
@@ -130,7 +137,14 @@ public class ConfigManager {
      * Establece la escala del HUD
      */
     public static void setScale(float scale) {
-        hudScale = scale;
+        // Validar escala razonable (entre 0.1 y 5.0)
+        if (scale < 0.1f) {
+            hudScale = 0.1f;
+        } else if (scale > 5.0f) {
+            hudScale = 5.0f;
+        } else {
+            hudScale = scale;
+        }
         saveConfig();
     }
     

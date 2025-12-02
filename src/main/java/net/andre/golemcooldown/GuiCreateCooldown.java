@@ -4,12 +4,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderHelper;
-import net.minecraft.client.renderer.entity.RenderItem;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.EnumChatFormatting;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
 
@@ -20,20 +21,14 @@ import java.io.IOException;
  */
 public class GuiCreateCooldown extends GuiScreen {
     private GuiScreen parent;
-    private static final RenderItem itemRenderer = new RenderItem();
     
     // Estado de edición
     private boolean isDragging = false;
-    private int dragOffsetX = 0;
-    private int dragOffsetY = 0;
     private int lastMouseX = 0;
     private int lastMouseY = 0;
     
     // Información del kit actual
     private String kitDetectado = "";
-    private int itemId = -1;
-    private ItemStack itemStack = null;
-    private boolean kitNoDetectado = false;
     
     // Posición y escala temporal (para edición)
     private int tempX = 0;
@@ -49,25 +44,10 @@ public class GuiCreateCooldown extends GuiScreen {
      * Detecta el kit actual desde el scoreboard
      */
     private void detectarKitActual() {
-        ScoreboardCooldownManager manager = GolemCooldownMod.scoreboardCooldownManager;
+        ScoreboardCooldownManager manager = CooldownAnni.scoreboardCooldownManager;
         if (manager != null) {
             // El manager se actualiza automáticamente cada tick
             kitDetectado = manager.getKitActual();
-            
-            if (kitDetectado != null && !kitDetectado.isEmpty()) {
-                // Kit detectado, obtener Item ID
-                itemId = KitMapper.getItemId(kitDetectado);
-                if (itemId > 0) {
-                    itemStack = new ItemStack(net.minecraft.item.Item.getItemById(itemId));
-                    kitNoDetectado = false;
-                } else {
-                    kitNoDetectado = true;
-                }
-            } else {
-                kitNoDetectado = true;
-            }
-        } else {
-            kitNoDetectado = true;
         }
         
         // Cargar posición y escala actual
@@ -79,6 +59,9 @@ public class GuiCreateCooldown extends GuiScreen {
     @Override
     public void initGui() {
         super.initGui();
+        
+        // Invalidar cache de ScaledResolution cuando cambia el tamaño de la GUI
+        cachedScaledResolution = null;
         
         // Botón "Save"
         this.buttonList.add(new GuiButton(
@@ -107,12 +90,14 @@ public class GuiCreateCooldown extends GuiScreen {
             // Save - Guardar configuración
             ConfigManager.setPosition(tempX, tempY);
             ConfigManager.setScale(tempScale);
-            this.mc.thePlayer.addChatMessage(
-                new net.minecraft.util.ChatComponentText(
-                    EnumChatFormatting.GREEN + "[GolemCooldown] " + 
-                    EnumChatFormatting.YELLOW + "Configuración guardada"
-                )
-            );
+            if (this.mc.thePlayer != null) {
+                this.mc.thePlayer.addChatMessage(
+                    new net.minecraft.util.ChatComponentText(
+                        EnumChatFormatting.GREEN + "[CooldownAnni] " + 
+                        EnumChatFormatting.YELLOW + "Configuración guardada"
+                    )
+                );
+            }
             this.mc.displayGuiScreen(this.parent);
         } else if (button.id == 2) {
             // Back
@@ -137,8 +122,8 @@ public class GuiCreateCooldown extends GuiScreen {
         
         // Información del kit
         String kitInfo;
-        if (kitNoDetectado) {
-            kitInfo = EnumChatFormatting.RED + "Kit no detectado";
+        if (kitDetectado == null || kitDetectado.isEmpty()) {
+            kitInfo = EnumChatFormatting.GRAY + "Kit: " + EnumChatFormatting.WHITE + "No detectado (únete a una partida)";
         } else {
             kitInfo = EnumChatFormatting.GREEN + "Kit: " + EnumChatFormatting.WHITE + kitDetectado;
         }
@@ -166,13 +151,27 @@ public class GuiCreateCooldown extends GuiScreen {
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
     
+    // Cache de ScaledResolution para evitar crear múltiples instancias
+    private net.minecraft.client.gui.ScaledResolution cachedScaledResolution = null;
+    
+    /**
+     * Obtiene ScaledResolution de forma segura (reutiliza instancia si es posible)
+     */
+    private net.minecraft.client.gui.ScaledResolution getScaledResolution() {
+        Minecraft mc = Minecraft.getMinecraft();
+        // Solo crear nueva instancia si es necesario (cambió el tamaño de ventana)
+        if (cachedScaledResolution == null) {
+            cachedScaledResolution = new net.minecraft.client.gui.ScaledResolution(mc);
+        }
+        return cachedScaledResolution;
+    }
+    
     /**
      * Dibuja el contador de ejemplo (para edición)
      */
     private void dibujarContadorEjemplo(int mouseX, int mouseY) {
         Minecraft mc = Minecraft.getMinecraft();
-        net.minecraft.client.gui.ScaledResolution scaled = new net.minecraft.client.gui.ScaledResolution(mc);
-        int screenWidth = scaled.getScaledWidth();
+        net.minecraft.client.gui.ScaledResolution scaled = getScaledResolution();
         int screenHeight = scaled.getScaledHeight();
         
         // Calcular posición
@@ -189,59 +188,38 @@ public class GuiCreateCooldown extends GuiScreen {
         int scaledX = (int)(guiPosX / tempScale);
         int scaledY = (int)(guiPosY / tempScale);
         
-        int itemSize = 32;
-        int itemX = scaledX - itemSize / 2;
-        int itemY = scaledY - itemSize / 2;
+        // Dibujar círculo estilo canelex
+        int radio = 25;
         
-        // Fondo semi-transparente
-        int alpha = 200;
-        int colorFondo = (alpha << 24) | 0x000000;
-        drawRect(itemX - 5, itemY - 5, itemX + itemSize + 5, itemY + itemSize + 5, colorFondo);
+        // Habilitar blend para transparencia
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        GlStateManager.disableTexture2D();
+        GlStateManager.disableAlpha();
         
-        // Borde
-        drawRect(itemX - 5, itemY - 5, itemX + itemSize + 5, itemY - 4, 0xFF000000);
-        drawRect(itemX - 5, itemY + itemSize + 4, itemX + itemSize + 5, itemY + itemSize + 5, 0xFF000000);
-        drawRect(itemX - 5, itemY - 5, itemX - 4, itemY + itemSize + 5, 0xFF000000);
-        drawRect(itemX + itemSize + 4, itemY - 5, itemX + itemSize + 5, itemY + itemSize + 5, 0xFF000000);
+        // Dibujar fondo del círculo (oscuro/morado)
+        int alphaFondo = 220;
+        int colorFondo = (alphaFondo << 24) | 0x4B0082; // Morado oscuro
+        dibujarCirculoRelleno(scaledX, scaledY, radio, colorFondo);
         
-        // Renderizar item o signo de interrogación
-        if (kitNoDetectado || itemStack == null) {
-            // Signo de interrogación
-            String questionMark = EnumChatFormatting.YELLOW + "?";
-            int qmWidth = this.fontRendererObj.getStringWidth(questionMark);
-            this.fontRendererObj.drawStringWithShadow(
-                questionMark,
-                scaledX - qmWidth / 2,
-                scaledY - 4,
-                0xFFFFFF
-            );
-        } else {
-            // Renderizar item - restaurar estados después
-            RenderHelper.enableGUIStandardItemLighting();
-            GlStateManager.enableRescaleNormal();
-            GlStateManager.enableBlend();
-            
-            itemRenderer.renderItemIntoGUI(itemStack, itemX, itemY);
-            itemRenderer.renderItemOverlayIntoGUI(
-                this.fontRendererObj,
-                itemStack,
-                itemX,
-                itemY,
-                null
-            );
-            
-            // RESTAURAR estados (CRÍTICO para no afectar otros mods)
-            RenderHelper.disableStandardItemLighting();
-            GlStateManager.disableRescaleNormal();
-        }
+        // Dibujar borde blanco del círculo
+        int grosorBorde = 2;
+        int colorBorde = 0xFFFFFFFF; // Blanco
+        dibujarCirculoBorde(scaledX, scaledY, radio, grosorBorde, colorBorde);
         
-        // Texto de ejemplo "30s"
-        String tiempoEjemplo = EnumChatFormatting.YELLOW + "30s";
+        // Restaurar estados
+        GlStateManager.enableTexture2D();
+        GlStateManager.enableAlpha();
+        
+        // Texto de ejemplo "30.0" centrado en amarillo
+        String tiempoEjemplo = EnumChatFormatting.YELLOW + "30.0";
         int tiempoWidth = this.fontRendererObj.getStringWidth(tiempoEjemplo);
+        int textoX = scaledX - tiempoWidth / 2;
+        int textoY = scaledY - 4; // Centrado verticalmente
+        
         this.fontRendererObj.drawStringWithShadow(
             tiempoEjemplo,
-            scaledX - tiempoWidth / 2,
-            scaledY + itemSize / 2 + 5,
+            textoX, textoY,
             0xFFFFFF
         );
         
@@ -249,7 +227,8 @@ public class GuiCreateCooldown extends GuiScreen {
         GlStateManager.popMatrix();
         
         // Indicador de que se puede arrastrar
-        if (isHoveringOverCounter(mouseX, mouseY, guiPosX, guiPosY, itemSize)) {
+        int radioDiametro = radio * 2;
+        if (isHoveringOverCounter(mouseX, mouseY, guiPosX, guiPosY, radioDiametro)) {
             String dragHint = EnumChatFormatting.GRAY + "Arrastra para mover";
             int hintWidth = this.fontRendererObj.getStringWidth(dragHint);
             this.fontRendererObj.drawStringWithShadow(
@@ -262,12 +241,14 @@ public class GuiCreateCooldown extends GuiScreen {
     }
     
     /**
-     * Verifica si el mouse está sobre el contador
+     * Verifica si el mouse está sobre el contador circular
      */
-    private boolean isHoveringOverCounter(int mouseX, int mouseY, int counterX, int counterY, int size) {
-        int halfSize = size / 2;
-        return mouseX >= counterX - halfSize && mouseX <= counterX + halfSize &&
-               mouseY >= counterY - halfSize && mouseY <= counterY + halfSize;
+    private boolean isHoveringOverCounter(int mouseX, int mouseY, int counterX, int counterY, int diametro) {
+        int radio = diametro / 2;
+        int dx = mouseX - counterX;
+        int dy = mouseY - counterY;
+        double distancia = Math.sqrt(dx * dx + dy * dy);
+        return distancia <= radio;
     }
     
     @Override
@@ -275,8 +256,7 @@ public class GuiCreateCooldown extends GuiScreen {
         super.mouseClicked(mouseX, mouseY, mouseButton);
         
         if (mouseButton == 0) { // Click izquierdo
-            net.minecraft.client.gui.ScaledResolution scaled = new net.minecraft.client.gui.ScaledResolution(mc);
-            int screenWidth = scaled.getScaledWidth();
+            net.minecraft.client.gui.ScaledResolution scaled = getScaledResolution();
             int screenHeight = scaled.getScaledHeight();
             
             int posX = (tempX < 0) ? 10 : tempX;
@@ -285,10 +265,9 @@ public class GuiCreateCooldown extends GuiScreen {
             int guiPosX = (int)((posX / (double)scaled.getScaledWidth()) * this.width);
             int guiPosY = (int)((posY / (double)scaled.getScaledHeight()) * this.height);
             
-            if (isHoveringOverCounter(mouseX, mouseY, guiPosX, guiPosY, 32)) {
+            int radio = 25;
+            if (isHoveringOverCounter(mouseX, mouseY, guiPosX, guiPosY, radio * 2)) {
                 isDragging = true;
-                dragOffsetX = mouseX - guiPosX;
-                dragOffsetY = mouseY - guiPosY;
                 lastMouseX = mouseX;
                 lastMouseY = mouseY;
             }
@@ -306,7 +285,7 @@ public class GuiCreateCooldown extends GuiScreen {
         super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
         
         if (isDragging && clickedMouseButton == 0) {
-            net.minecraft.client.gui.ScaledResolution scaled = new net.minecraft.client.gui.ScaledResolution(mc);
+            net.minecraft.client.gui.ScaledResolution scaled = getScaledResolution();
             
             // Calcular nueva posición
             int deltaX = mouseX - lastMouseX;
@@ -332,10 +311,10 @@ public class GuiCreateCooldown extends GuiScreen {
         if (wheel != 0) {
             if (wheel > 0) {
                 // Scroll up - aumentar escala
-                tempScale = Math.min(3.0f, tempScale + 0.1f);
+                tempScale = Math.min(5.0f, tempScale + 0.1f);
             } else {
                 // Scroll down - disminuir escala
-                tempScale = Math.max(0.5f, tempScale - 0.1f);
+                tempScale = Math.max(0.1f, tempScale - 0.1f);
             }
         }
     }
@@ -351,7 +330,100 @@ public class GuiCreateCooldown extends GuiScreen {
     
     @Override
     public boolean doesGuiPauseGame() {
-        return false;
+        // Retornar true para evitar problemas al minimizar la ventana
+        return true;
+    }
+    
+    /**
+     * Dibuja un círculo relleno usando OpenGL (mismo método que KitRenderManager)
+     */
+    private void dibujarCirculoRelleno(int x, int y, int radio, int color) {
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+        
+        GlStateManager.disableTexture2D();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        
+        // Extraer componentes de color
+        int alpha = (color >> 24) & 0xFF;
+        int red = (color >> 16) & 0xFF;
+        int green = (color >> 8) & 0xFF;
+        int blue = color & 0xFF;
+        
+        float r = red / 255.0f;
+        float g = green / 255.0f;
+        float b = blue / 255.0f;
+        float a = alpha / 255.0f;
+        
+        worldrenderer.begin(GL11.GL_TRIANGLE_FAN, DefaultVertexFormats.POSITION_COLOR);
+        worldrenderer.pos(x, y, 0).color(r, g, b, a).endVertex();
+        
+        // Dibujar círculo usando múltiples puntos
+        int segmentos = 32;
+        for (int i = 0; i <= segmentos; i++) {
+            double angulo = (i * 2 * Math.PI) / segmentos;
+            double px = x + radio * Math.cos(angulo);
+            double py = y + radio * Math.sin(angulo);
+            worldrenderer.pos(px, py, 0).color(r, g, b, a).endVertex();
+        }
+        
+        tessellator.draw();
+        GlStateManager.enableTexture2D();
+    }
+    
+    /**
+     * Dibuja el borde de un círculo usando OpenGL (mismo método que KitRenderManager)
+     */
+    private void dibujarCirculoBorde(int x, int y, int radio, int grosor, int color) {
+        // Validar parámetros
+        if (radio <= 0 || grosor <= 0 || grosor >= radio) {
+            return; // No dibujar si los parámetros son inválidos
+        }
+        
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+        
+        GlStateManager.disableTexture2D();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        
+        // Extraer componentes de color
+        int alpha = (color >> 24) & 0xFF;
+        int red = (color >> 16) & 0xFF;
+        int green = (color >> 8) & 0xFF;
+        int blue = color & 0xFF;
+        
+        float r = red / 255.0f;
+        float g = green / 255.0f;
+        float b = blue / 255.0f;
+        float a = alpha / 255.0f;
+        
+        // Dibujar borde como un anillo
+        int radioExterior = radio;
+        int radioInterior = Math.max(1, radio - grosor); // Asegurar que sea al menos 1
+        
+        int segmentos = 32;
+        worldrenderer.begin(GL11.GL_QUAD_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        
+        for (int i = 0; i <= segmentos; i++) {
+            double angulo = (i * 2 * Math.PI) / segmentos;
+            double cos = Math.cos(angulo);
+            double sin = Math.sin(angulo);
+            
+            // Punto exterior
+            double px1 = x + radioExterior * cos;
+            double py1 = y + radioExterior * sin;
+            worldrenderer.pos(px1, py1, 0).color(r, g, b, a).endVertex();
+            
+            // Punto interior
+            double px2 = x + radioInterior * cos;
+            double py2 = y + radioInterior * sin;
+            worldrenderer.pos(px2, py2, 0).color(r, g, b, a).endVertex();
+        }
+        
+        tessellator.draw();
+        GlStateManager.enableTexture2D();
     }
 }
 

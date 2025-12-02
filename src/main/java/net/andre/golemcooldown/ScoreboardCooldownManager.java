@@ -50,6 +50,11 @@ public class ScoreboardCooldownManager {
         
         // Decrementar cooldown cada segundo si está activo
         if (cooldownActual > 0) {
+            // Si ultimaActualizacion es 0 (primera vez), inicializarlo
+            if (ultimaActualizacion == 0) {
+                ultimaActualizacion = ahora;
+            }
+            
             long tiempoTranscurrido = ahora - ultimaActualizacion;
             if (tiempoTranscurrido >= 1000) {
                 int segundosTranscurridos = (int)(tiempoTranscurrido / 1000);
@@ -60,6 +65,7 @@ public class ScoreboardCooldownManager {
                 if (cooldownActual == 0) {
                     kitActual = "";
                     cooldownMaximo = 0;
+                    ultimaActualizacion = 0; // Resetear para la próxima vez
                 }
             }
         }
@@ -113,32 +119,63 @@ public class ScoreboardCooldownManager {
         }
         
         if (kitEncontrado != null) {
-            // Verificar si el kit tiene cooldown configurado
-            if (!KitMapper.hasCooldown(kitEncontrado)) {
-                // Kit sin cooldown, no mostrar nada
-                kitActual = "";
-                cooldownActual = 0;
-                cooldownMaximo = 0;
+            // DETECCIÓN AUTOMÁTICA INTELIGENTE:
+            // Si el scoreboard muestra un cooldown (ej: "Kit: Golem (30s)") → tiene cooldown
+            // Si solo muestra el nombre (ej: "Kit: Golem") → verificar si está registrado manualmente
+            // Si está registrado manualmente con hasCooldown=true → mostrar contador cuando aparezca cooldown
+            // Si NO está registrado → no mostrar nada hasta que cambie de kit
+            
+            boolean tieneCooldown = false;
+            
+            if (cooldownEncontrado > 0) {
+                // El scoreboard muestra un cooldown activo → automáticamente tiene cooldown
+                // Esto significa que el jugador usó la habilidad y el servidor muestra el cooldown
+                tieneCooldown = true;
+            } else {
+                // No hay cooldown visible en el scoreboard en este momento
+                // Verificar si está registrado manualmente en KitMapper
+                // Si está registrado con hasCooldown=true, esperará a que aparezca el cooldown
+                // Si NO está registrado, no mostrará nada (kit sin cooldown)
+                tieneCooldown = KitMapper.hasCooldown(kitEncontrado);
+            }
+            
+            // Si el kit no tiene cooldown (ni detectado automáticamente ni registrado manualmente)
+            // No mostrar nada hasta que cambie de kit
+            if (!tieneCooldown) {
+                // Solo resetear si cambió de kit, no si es el mismo kit sin cooldown
+                if (kitActual == null || !kitEncontrado.equals(kitActual)) {
+                    kitActual = "";
+                    cooldownActual = 0;
+                    cooldownMaximo = 0;
+                }
                 return;
             }
             
-            // Si cambió el kit o se detectó cooldown nuevo
-            if (!kitEncontrado.equals(kitActual) || cooldownEncontrado > 0) {
+            // Verificar si cambió el kit
+            boolean kitCambio = (kitActual == null || !kitEncontrado.equals(kitActual));
+            
+            if (kitCambio) {
+                // CAMBIO DE KIT: Resetear cooldown anterior y preparar para el nuevo kit
                 kitActual = kitEncontrado;
+                cooldownActual = 0;
+                cooldownMaximo = 0;
                 
+                // Si el nuevo kit tiene cooldown activo en el scoreboard, iniciarlo
                 if (cooldownEncontrado > 0) {
-                    // Cooldown detectado en el scoreboard
                     cooldownActual = cooldownEncontrado;
                     cooldownMaximo = cooldownEncontrado;
                     ultimaActualizacion = ahora;
-                } else if (cooldownActual > 0) {
-                    // Mismo kit, continuar con el cooldown actual
-                    // (ya está decrementando)
-                } else {
-                    // Kit detectado pero sin cooldown activo
-                    kitActual = kitEncontrado;
-                    cooldownActual = 0;
                 }
+            } else {
+                // MISMO KIT: Actualizar cooldown si hay uno nuevo en el scoreboard
+                if (cooldownEncontrado > 0) {
+                    // Cooldown nuevo detectado en el scoreboard
+                    cooldownActual = cooldownEncontrado;
+                    cooldownMaximo = cooldownEncontrado;
+                    ultimaActualizacion = ahora;
+                }
+                // Si no hay cooldown en el scoreboard, el cooldown actual sigue decrementando
+                // (ya está siendo manejado arriba en el decremento automático)
             }
         } else {
             // No se encontró kit en el scoreboard
@@ -181,6 +218,8 @@ public class ScoreboardCooldownManager {
         kitActual = "";
         cooldownActual = 0;
         cooldownMaximo = 0;
+        ultimaActualizacion = 0;
+        ultimaLectura = 0;
     }
 }
 

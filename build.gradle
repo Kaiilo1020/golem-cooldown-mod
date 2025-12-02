@@ -18,12 +18,13 @@ buildscript {
 apply plugin: 'net.minecraftforge.gradle.forge'
 
 version = "1.0.0"
-group = "net.andre.golemcooldown"
-archivesBaseName = "GolemCooldownMod"
+group = "net.andre.cooldownanni"
+archivesBaseName = "cooldownAnni"
 
 sourceCompatibility = targetCompatibility = '1.8'
 compileJava {
     sourceCompatibility = targetCompatibility = '1.8'
+    options.encoding = 'UTF-8'
 }
 
 minecraft {
@@ -48,6 +49,11 @@ processResources {
     from(sourceSets.main.resources.srcDirs) {
         exclude 'mcmod.info'
     }
+}
+
+// Configurar encoding UTF-8 para todos los archivos fuente
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
 }
 
 jar {

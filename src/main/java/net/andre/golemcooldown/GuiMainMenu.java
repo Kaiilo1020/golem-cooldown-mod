@@ -12,10 +12,6 @@ import java.io.IOException;
  * Muestra botones: "Delete Cooldown" y "Create Cooldown"
  */
 public class GuiMainMenu extends GuiScreen {
-    private GuiButton btnDeleteCooldown;
-    private GuiButton btnCreateCooldown;
-    private GuiButton btnClose;
-    
     @Override
     public void initGui() {
         super.initGui();
@@ -27,7 +23,7 @@ public class GuiMainMenu extends GuiScreen {
         int spacing = 10;
         
         // Botón "Delete Cooldown"
-        this.buttonList.add(this.btnDeleteCooldown = new GuiButton(
+        this.buttonList.add(new GuiButton(
             1,
             centerX - buttonWidth / 2,
             centerY - buttonHeight - spacing / 2,
@@ -37,7 +33,7 @@ public class GuiMainMenu extends GuiScreen {
         ));
         
         // Botón "Create Cooldown"
-        this.buttonList.add(this.btnCreateCooldown = new GuiButton(
+        this.buttonList.add(new GuiButton(
             2,
             centerX - buttonWidth / 2,
             centerY + spacing / 2,
@@ -47,7 +43,7 @@ public class GuiMainMenu extends GuiScreen {
         ));
         
         // Botón "Close"
-        this.buttonList.add(this.btnClose = new GuiButton(
+        this.buttonList.add(new GuiButton(
             3,
             centerX - buttonWidth / 2,
             this.height - 30,
@@ -62,12 +58,14 @@ public class GuiMainMenu extends GuiScreen {
         if (button.id == 1) {
             // Delete Cooldown - Resetear configuración
             ConfigManager.reset();
-            this.mc.thePlayer.addChatMessage(
-                new net.minecraft.util.ChatComponentText(
-                    EnumChatFormatting.GREEN + "[GolemCooldown] " + 
-                    EnumChatFormatting.YELLOW + "Configuración reseteada"
-                )
-            );
+            if (this.mc.thePlayer != null) {
+                this.mc.thePlayer.addChatMessage(
+                    new net.minecraft.util.ChatComponentText(
+                        EnumChatFormatting.GREEN + "[CooldownAnni] " + 
+                        EnumChatFormatting.YELLOW + "Configuración reseteada"
+                    )
+                );
+            }
             this.mc.displayGuiScreen(null);
         } else if (button.id == 2) {
             // Create Cooldown - Abrir interfaz de configuración
@@ -84,7 +82,7 @@ public class GuiMainMenu extends GuiScreen {
         
         // Título
         String title = EnumChatFormatting.GOLD + EnumChatFormatting.BOLD.toString() + 
-                      "Golem Cooldown Counter";
+                      "CooldownAnni";
         int titleWidth = this.fontRendererObj.getStringWidth(title);
         this.fontRendererObj.drawStringWithShadow(
             title,
@@ -107,7 +105,8 @@ public class GuiMainMenu extends GuiScreen {
     
     @Override
     public boolean doesGuiPauseGame() {
-        return false;
+        // Retornar true para evitar problemas al minimizar la ventana
+        return true;
     }
 }
 

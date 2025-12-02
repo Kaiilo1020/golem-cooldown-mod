@@ -4,27 +4,29 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderHelper;
-import net.minecraft.client.renderer.entity.RenderItem;
-import net.minecraft.item.ItemStack;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.WorldRenderer;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import org.lwjgl.opengl.GL11;
 
 /**
  * Renderiza el contador de cooldown del kit actual
+ * Diseño circular estilo canelex: círculo con borde blanco, fondo oscuro/morado, número centrado
  * Solo muestra si hay cooldown activo
  */
 public class KitRenderManager {
-    private static final RenderItem itemRenderer = new RenderItem();
     
     @SubscribeEvent
     public void onRenderOverlay(RenderGameOverlayEvent.Post event) {
-        if (event.type != RenderGameOverlayEvent.ElementType.ALL) {
+        // Usar TEXT en lugar de ALL para evitar interferencias
+        if (event.type != RenderGameOverlayEvent.ElementType.TEXT) {
             return;
         }
         
-        ScoreboardCooldownManager manager = GolemCooldownMod.scoreboardCooldownManager;
+        ScoreboardCooldownManager manager = CooldownAnni.scoreboardCooldownManager;
         if (manager == null) return;
         
         // Solo mostrar si hay cooldown activo
@@ -39,39 +41,36 @@ public class KitRenderManager {
             return;
         }
         
-        // Obtener Item ID del kit
-        int itemId = KitMapper.getItemId(kit);
-        if (itemId <= 0) {
-            return; // Kit no mapeado
-        }
-        
-        // Crear ItemStack
-        ItemStack itemStack = new ItemStack(net.minecraft.item.Item.getItemById(itemId));
-        if (itemStack.getItem() == null) {
-            return;
-        }
-        
         // Obtener posición y escala de la configuración
+        // IMPORTANTE: Usar el ScaledResolution del evento, no crear uno nuevo
         Minecraft mc = Minecraft.getMinecraft();
-        ScaledResolution scaled = new ScaledResolution(mc);
-        int screenWidth = scaled.getScaledWidth();
+        if (mc.theWorld == null || mc.thePlayer == null) {
+            return; // No renderizar si no hay mundo/jugador
+        }
+        
+        ScaledResolution scaled = event.resolution; // Usar el del evento
         int screenHeight = scaled.getScaledHeight();
         
         int posX = (ConfigManager.hudX < 0) ? 10 : ConfigManager.hudX;
         int posY = (ConfigManager.hudY < 0) ? screenHeight - 50 : ConfigManager.hudY;
         float scale = ConfigManager.hudScale;
         
-        // Renderizar
-        dibujarContador(mc, posX, posY, scale, itemStack, cooldown, manager.getCooldownMaximo());
+        // Renderizar diseño circular estilo canelex
+        dibujarContadorCircular(mc, posX, posY, scale, cooldown, manager.getCooldownMaximo());
     }
     
     /**
-     * Dibuja el contador en pantalla
+     * Dibuja el contador circular estilo canelex
+     * Diseño: Círculo con borde blanco, fondo oscuro/morado, número centrado en amarillo
      * IMPORTANTE: Restaura completamente el estado de OpenGL para no afectar otros mods
-     * NO modifica configuraciones de video, zoom, controles u otros mods
      */
-    private void dibujarContador(Minecraft mc, int x, int y, float escala, 
-                                 ItemStack itemStack, int cooldown, int cooldownMax) {
+    private void dibujarContadorCircular(Minecraft mc, int x, int y, float escala, 
+                                         int cooldown, int cooldownMax) {
+        // Validar escala para evitar división por cero
+        if (escala <= 0.0f) {
+            escala = 1.0f;
+        }
+        
         // Guardar estado de OpenGL (CRÍTICO para no afectar otros mods)
         GlStateManager.pushMatrix();
         
@@ -82,86 +81,157 @@ public class KitRenderManager {
             int scaledX = (int)(x / escala);
             int scaledY = (int)(y / escala);
             
-            int itemSize = 32;
-            int itemX = scaledX - itemSize / 2;
-            int itemY = scaledY - itemSize / 2;
+            // Tamaño del círculo (radio)
+            int radio = 25; // Radio del círculo
             
-            // Fondo semi-transparente
-            int alpha = 200;
-            int colorFondo = (alpha << 24) | 0x000000;
-            Gui.drawRect(itemX - 5, itemY - 5, itemX + itemSize + 5, itemY + itemSize + 5, colorFondo);
-            
-            // Borde
-            Gui.drawRect(itemX - 5, itemY - 5, itemX + itemSize + 5, itemY - 4, 0xFF000000);
-            Gui.drawRect(itemX - 5, itemY + itemSize + 4, itemX + itemSize + 5, itemY + itemSize + 5, 0xFF000000);
-            Gui.drawRect(itemX - 5, itemY - 5, itemX - 4, itemY + itemSize + 5, 0xFF000000);
-            Gui.drawRect(itemX + itemSize + 4, itemY - 5, itemX + itemSize + 5, itemY + itemSize + 5, 0xFF000000);
-            
-            // Renderizar item - guardar y restaurar estados críticos
-            // Estos estados pueden afectar otros mods si no se restauran
-            RenderHelper.enableGUIStandardItemLighting();
-            GlStateManager.enableRescaleNormal();
+            // Habilitar blend para transparencia
             GlStateManager.enableBlend();
             GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+            GlStateManager.disableTexture2D();
+            GlStateManager.disableAlpha();
             
-            itemRenderer.renderItemIntoGUI(itemStack, itemX, itemY);
-            itemRenderer.renderItemOverlayIntoGUI(mc.fontRendererObj, itemStack, itemX, itemY, null);
+            // Dibujar fondo del círculo (oscuro/morado)
+            // Color: RGB(75, 0, 130) = morado oscuro, con alpha
+            int alphaFondo = 220;
+            int colorFondo = (alphaFondo << 24) | 0x4B0082; // Morado oscuro con transparencia
             
-            // RESTAURAR estados (CRÍTICO)
-            RenderHelper.disableStandardItemLighting();
-            GlStateManager.disableRescaleNormal();
-            // NO deshabilitar blend aquí, puede estar usado por otros mods
-            // Solo restaurar la función de blend si es necesario
+            dibujarCirculoRelleno(scaledX, scaledY, radio, colorFondo);
             
-            // Texto del cooldown
-            String tiempoTexto = cooldown + "s";
+            // Dibujar borde blanco del círculo
+            int grosorBorde = 2;
+            int colorBorde = 0xFFFFFFFF; // Blanco
+            dibujarCirculoBorde(scaledX, scaledY, radio, grosorBorde, colorBorde);
+            
+            // Restaurar estados de OpenGL
+            GlStateManager.enableTexture2D();
+            GlStateManager.enableAlpha();
+            
+            // Texto del cooldown centrado (amarillo pixelado)
+            // Formato: "10.0" con un decimal
+            String tiempoTexto;
+            if (cooldownMax > 0 && cooldown < cooldownMax) {
+                // Mostrar con decimal si hay cooldown máximo (ej: 10.0, 9.5, etc.)
+                float tiempoDecimal = (float)cooldown;
+                tiempoTexto = String.format("%.1f", tiempoDecimal);
+            } else {
+                // Mostrar entero si no hay máximo (ej: 30, 29, etc.)
+                tiempoTexto = String.valueOf(cooldown);
+            }
+            
+            // Renderizar texto centrado en amarillo (estilo pixelado)
             int textoWidth = mc.fontRendererObj.getStringWidth(tiempoTexto);
             int textoX = scaledX - textoWidth / 2;
-            int textoY = scaledY + itemSize / 2 + 5;
+            int textoY = scaledY - 4; // Centrado verticalmente
             
-            // Fondo para el texto
-            Gui.drawRect(textoX - 2, textoY - 1, textoX + textoWidth + 2, textoY + 9, (200 << 24) | 0x000000);
-            
-            // Texto
+            // Texto amarillo con sombra (estilo pixelado)
             mc.fontRendererObj.drawStringWithShadow(
                 EnumChatFormatting.YELLOW + tiempoTexto,
                 textoX, textoY,
                 0xFFFFFF
             );
             
-            // Barra de progreso (opcional)
-            if (cooldownMax > 0) {
-                float progreso = (float)cooldown / (float)cooldownMax;
-                int barraWidth = itemSize;
-                int barraHeight = 2;
-                int barraX = itemX;
-                int barraY = itemY + itemSize - barraHeight;
-                
-                // Fondo de la barra
-                Gui.drawRect(barraX, barraY, barraX + barraWidth, barraY + barraHeight, 0xFF000000);
-                
-                // Barra de progreso (verde -> amarillo -> rojo)
-                int colorBarra;
-                if (progreso > 0.5f) {
-                    colorBarra = 0xFF00FF00; // Verde
-                } else if (progreso > 0.25f) {
-                    colorBarra = 0xFFFFFF00; // Amarillo
-                } else {
-                    colorBarra = 0xFFFF0000; // Rojo
-                }
-                
-                Gui.drawRect(barraX, barraY, barraX + (int)(barraWidth * progreso), barraY + barraHeight, colorBarra);
-            }
-            
         } catch (Exception e) {
             // Si hay error, no hacer nada que pueda afectar otros mods
-            System.err.println("[GolemCooldown] Error al renderizar: " + e.getMessage());
+            System.err.println("[CooldownAnni] Error al renderizar círculo: " + e.getMessage());
             e.printStackTrace();
         } finally {
             // SIEMPRE restaurar el estado de OpenGL (CRÍTICO)
-            // Esto previene que otros mods o configuraciones se vean afectadas
+            GlStateManager.enableTexture2D();
+            GlStateManager.enableAlpha();
             GlStateManager.popMatrix();
         }
+    }
+    
+    /**
+     * Dibuja un círculo relleno usando OpenGL
+     */
+    private void dibujarCirculoRelleno(int x, int y, int radio, int color) {
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+        
+        GlStateManager.disableTexture2D();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        
+        // Extraer componentes de color
+        int alpha = (color >> 24) & 0xFF;
+        int red = (color >> 16) & 0xFF;
+        int green = (color >> 8) & 0xFF;
+        int blue = color & 0xFF;
+        
+        float r = red / 255.0f;
+        float g = green / 255.0f;
+        float b = blue / 255.0f;
+        float a = alpha / 255.0f;
+        
+        worldrenderer.begin(GL11.GL_TRIANGLE_FAN, DefaultVertexFormats.POSITION_COLOR);
+        worldrenderer.pos(x, y, 0).color(r, g, b, a).endVertex();
+        
+        // Dibujar círculo usando múltiples puntos
+        int segmentos = 32; // Número de segmentos para el círculo (más = más suave)
+        for (int i = 0; i <= segmentos; i++) {
+            double angulo = (i * 2 * Math.PI) / segmentos;
+            double px = x + radio * Math.cos(angulo);
+            double py = y + radio * Math.sin(angulo);
+            worldrenderer.pos(px, py, 0).color(r, g, b, a).endVertex();
+        }
+        
+        tessellator.draw();
+        GlStateManager.enableTexture2D();
+    }
+    
+    /**
+     * Dibuja el borde de un círculo usando OpenGL
+     */
+    private void dibujarCirculoBorde(int x, int y, int radio, int grosor, int color) {
+        // Validar parámetros
+        if (radio <= 0 || grosor <= 0 || grosor >= radio) {
+            return; // No dibujar si los parámetros son inválidos
+        }
+        
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+        
+        GlStateManager.disableTexture2D();
+        GlStateManager.enableBlend();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        
+        // Extraer componentes de color
+        int alpha = (color >> 24) & 0xFF;
+        int red = (color >> 16) & 0xFF;
+        int green = (color >> 8) & 0xFF;
+        int blue = color & 0xFF;
+        
+        float r = red / 255.0f;
+        float g = green / 255.0f;
+        float b = blue / 255.0f;
+        float a = alpha / 255.0f;
+        
+        // Dibujar borde como un anillo (círculo exterior menos círculo interior)
+        int radioExterior = radio;
+        int radioInterior = Math.max(1, radio - grosor); // Asegurar que sea al menos 1
+        
+        int segmentos = 32;
+        worldrenderer.begin(GL11.GL_QUAD_STRIP, DefaultVertexFormats.POSITION_COLOR);
+        
+        for (int i = 0; i <= segmentos; i++) {
+            double angulo = (i * 2 * Math.PI) / segmentos;
+            double cos = Math.cos(angulo);
+            double sin = Math.sin(angulo);
+            
+            // Punto exterior
+            double px1 = x + radioExterior * cos;
+            double py1 = y + radioExterior * sin;
+            worldrenderer.pos(px1, py1, 0).color(r, g, b, a).endVertex();
+            
+            // Punto interior
+            double px2 = x + radioInterior * cos;
+            double py2 = y + radioInterior * sin;
+            worldrenderer.pos(px2, py2, 0).color(r, g, b, a).endVertex();
+        }
+        
+        tessellator.draw();
+        GlStateManager.enableTexture2D();
     }
 }
 

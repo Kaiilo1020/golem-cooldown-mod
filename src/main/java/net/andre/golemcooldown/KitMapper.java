@@ -44,11 +44,11 @@ public class KitMapper {
     /**
      * Obtiene el Item ID de un kit por su nombre
      * @param nombreKit Nombre del kit (ej: "Golem", "golem", "GOLEM")
-     * @return Item ID o -1 si no se encuentra
+     * @return Item ID o 265 (Bloque de Hierro) por defecto si no se encuentra
      */
     public static int getItemId(String nombreKit) {
-        if (nombreKit == null) return -1;
-        return KIT_TO_ITEM_ID.getOrDefault(nombreKit.toLowerCase().trim(), -1);
+        if (nombreKit == null) return 265; // Item por defecto: Bloque de Hierro
+        return KIT_TO_ITEM_ID.getOrDefault(nombreKit.toLowerCase().trim(), 265); // 265 = Bloque de Hierro por defecto
     }
     
     /**
@@ -61,14 +61,5 @@ public class KitMapper {
         return KIT_HAS_COOLDOWN.getOrDefault(nombreKit.toLowerCase().trim(), false);
     }
     
-    /**
-     * Verifica si un kit está registrado
-     * @param nombreKit Nombre del kit
-     * @return true si está registrado
-     */
-    public static boolean isKitRegistered(String nombreKit) {
-        if (nombreKit == null) return false;
-        return KIT_TO_ITEM_ID.containsKey(nombreKit.toLowerCase().trim());
-    }
 }
 
